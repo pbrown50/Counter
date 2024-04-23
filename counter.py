@@ -21,7 +21,7 @@ DrawingUtil = mp.solutions.drawing_utils
 
 class Counter:
     def __init__(self):
-        self.count = 0
+        self.count = -1
 
         # Create the pose detector
         base_options = BaseOptions(model_asset_path='data/pose_landmarker_lite.task')
@@ -32,6 +32,8 @@ class Counter:
         self.video = cv2.VideoCapture(0)
 
         self.first = time.time()
+
+        self.completed = False
 
     def draw_landmarks_on_body(self, image, detection_result):
         """
@@ -58,6 +60,24 @@ class Counter:
                                        pose_landmarks_proto,
                                        solutions.pose.POSE_CONNECTIONS,
                                        solutions.drawing_styles.get_default_pose_landmarks_style())
+    def checkPullUp(self, detection_result):
+        pose_landmarks_list = detection_result.pose_landmarks
+        for idx in range(len(pose_landmarks_list)):
+            pose_landmarks = pose_landmarks_list[idx]
+
+            leftHand = pose_landmarks[19]
+            rightHand = pose_landmarks[20]
+            leftElbow = pose_landmarks[13]
+            rightElbow = pose_landmarks[14]
+            mouth = pose_landmarks[10]
+
+            if leftElbow.y > leftHand.y and rightElbow.y > rightHand.y and leftHand.y > mouth.y and rightHand.y > mouth.y and self.completed is False:
+                self.count += 1
+                self.completed = True
+
+            if self.completed and leftHand.y < mouth.y and rightHand.y < mouth.y:
+                self.completed = False
+
             
     def run(self):
         """
@@ -91,9 +111,20 @@ class Counter:
 
             # Draw the pose landmarks
             self.draw_landmarks_on_body(image, results)
-
             
+            # Increase pull up count if pull up is detected
+            self.checkPullUp(results)
 
+            if self.count != -1:
+                # Display pull up count on screen
+                cv2.putText(image,
+                            "count: " + str(self.count),
+                            (50, 100),
+                            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                            fontScale=1,
+                            color=(0, 255, 0),
+                            thickness=2)
+            
             # Change the color of the frame back
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             cv2.imshow('Pose Tracking', image)
