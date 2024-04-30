@@ -34,6 +34,7 @@ class Counter:
         self.first = time.time()
 
         self.completed = False
+        self.started = False
 
     def draw_landmarks_on_body(self, image, detection_result):
         """
@@ -70,13 +71,40 @@ class Counter:
             leftElbow = pose_landmarks[13]
             rightElbow = pose_landmarks[14]
             mouth = pose_landmarks[10]
-
+            
             if leftElbow.y > leftHand.y and rightElbow.y > rightHand.y and leftHand.y > mouth.y and rightHand.y > mouth.y and self.completed is False:
                 self.count += 1
                 self.completed = True
+                self.started = True
 
             if self.completed and leftHand.y < mouth.y and rightHand.y < mouth.y:
                 self.completed = False
+    def checkForm(self, image, detection_result):
+        pose_landmarks_list = detection_result.pose_landmarks
+        for idx in range(len(pose_landmarks_list)):
+            pose_landmarks = pose_landmarks_list[idx]
+
+            leftHand = pose_landmarks[19]
+            rightHand = pose_landmarks[20]
+            leftElbow = pose_landmarks[13]
+            rightElbow = pose_landmarks[14]
+            mouth = pose_landmarks[10]
+            print(leftHand.x)
+            if self.started and ((leftElbow.x < leftHand.x - 0.07 or leftElbow.x > leftHand.x + 0.07) or (rightElbow.x > rightHand.x + 0.07 and rightElbow.x < rightHand.x - 0.07)):
+                cv2.putText(image,
+                            "KEEP ELBOWS BELOW HANDS FOR OPTIMAL FORM!",
+                            (50, 150),
+                            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                            fontScale=1,
+                            color=(0, 0, 255),
+                            thickness=2)
+            # Start in dead hang
+            # keep jawline parallel to ground
+            # Dont Swing Body
+            # Make sure you pull your chin above the bar for the pull up to count
+            # Fully extend arms at bottom
+            # Check grip
+
 
             
     def run(self):
@@ -115,14 +143,16 @@ class Counter:
             # Increase pull up count if pull up is detected
             self.checkPullUp(results)
 
+            self.checkForm(image, results)
+
             if self.count != -1:
                 # Display pull up count on screen
                 cv2.putText(image,
-                            "count: " + str(self.count),
+                            "COUNT: " + str(self.count),
                             (50, 100),
                             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
                             fontScale=1,
-                            color=(0, 255, 0),
+                            color=(0, 0, 255),
                             thickness=2)
             
             # Change the color of the frame back
@@ -131,7 +161,7 @@ class Counter:
 
             # Break the loop if the user presses 'q'
             if cv2.waitKey(50) & 0xFF == ord('q'):
-                print(self.score)
+                print("COUNT: " + str(self.count) + "    THANKS FOR PLAYING!")
                 break    
 
         # Release our video and close all windows
