@@ -10,6 +10,7 @@ from mediapipe.framework.formats import landmark_pb2
 import numpy as np
 import cv2
 import time
+import math
 
 # Library Constants
 BaseOptions = mp.tasks.BaseOptions
@@ -35,6 +36,7 @@ class Counter:
 
         self.completed = False
         self.started = False
+        self.deadHang = False
 
     def draw_landmarks_on_body(self, image, detection_result):
         """
@@ -61,7 +63,7 @@ class Counter:
                                        pose_landmarks_proto,
                                        solutions.pose.POSE_CONNECTIONS,
                                        solutions.drawing_styles.get_default_pose_landmarks_style())
-    def checkPullUp(self, detection_result):
+    def checkPullUp(self, image, detection_result):
         pose_landmarks_list = detection_result.pose_landmarks
         for idx in range(len(pose_landmarks_list)):
             pose_landmarks = pose_landmarks_list[idx]
@@ -71,11 +73,31 @@ class Counter:
             leftElbow = pose_landmarks[13]
             rightElbow = pose_landmarks[14]
             mouth = pose_landmarks[10]
+            leftShoulder = pose_landmarks[11]
+            rightShoulder = pose_landmarks[12]
+            leftAngle = self.calculate_angle(leftHand, leftElbow, leftShoulder)
+            rightAngle = self.calculate_angle(rightHand, rightElbow, rightShoulder)
+            while self.checkDeadHang(leftAngle, rightAngle) == False: 
+                a = 0
+                message = ""
+                if a == 0:
+                    message = "START IN A DEAD HANG!"
+                else:
+                    message = "RETURN TO A DEAD HANG!"
+                cv2.putText(image,
+                            message,
+                            (50, 150),
+                            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                            fontScale=1,
+                            color=(0, 0, 255),
+                            thickness=2)
             
-            if leftElbow.y > leftHand.y and rightElbow.y > rightHand.y and leftHand.y > mouth.y and rightHand.y > mouth.y and self.completed is False:
+            if leftElbow.y > leftHand.y and rightElbow.y > rightHand.y and leftHand.y > mouth.y and rightHand.y > mouth.y and self.completed is False and self.deadHang:
                 self.count += 1
                 self.completed = True
                 self.started = True
+                self.deadHang = False
+                a += 1
 
             if self.completed and leftHand.y < mouth.y and rightHand.y < mouth.y:
                 self.completed = False
@@ -88,24 +110,64 @@ class Counter:
             rightHand = pose_landmarks[20]
             leftElbow = pose_landmarks[13]
             rightElbow = pose_landmarks[14]
+            leftHip = pose_landmarks[23]
+            rightHip = pose_landmarks[24]
+            leftKnee = pose_landmarks[25]
+            rightKnee = pose_landmarks[26]
+            leftShoulder = pose_landmarks[11]
+            rightShoulder = pose_landmarks[12]
             mouth = pose_landmarks[10]
-            print(leftHand.x)
-            if self.started and ((leftElbow.x < leftHand.x - 0.07 or leftElbow.x > leftHand.x + 0.07) or (rightElbow.x > rightHand.x + 0.07 and rightElbow.x < rightHand.x - 0.07)):
+            leftAngle = self.calculate_angle(leftHand, leftElbow, leftShoulder)
+            rightAngle = self.calculate_angle(rightHand, rightElbow, rightShoulder)
+            messages = []
+
+            if self.started:
+                if ((leftElbow.x < leftHand.x - 0.07 or leftElbow.x > leftHand.x + 0.07) or (rightElbow.x > rightHand.x + 0.07 and rightElbow.x < rightHand.x - 0.07)):
+                    messages.append("KEEP ELBOWS BELOW HANDS FOR OPTIMAL FORM!")
+                    
+                if ((leftKnee.z < leftHip.z - 0.03 or leftKnee.z > leftHip.z + 0.03) or (rightKnee.z > rightHip.z + 0.03 and rightKnee.z < rightHip.z - 0.03)):
+                    messages.append("DON'T SWAY BACK AND FORTH!")
+                    
+                if ((leftKnee.x < leftHip.x - 0.03 or leftKnee.x > leftHip.x + 0.03) or (rightKnee.x > rightHip.x + 0.03 and rightKnee.x < rightHip.x - 0.03)):
+                    messages.append("DON'T SWAY SIDE TO SIDE!")
+                
+            y = 150
+            for message in messages:
                 cv2.putText(image,
-                            "KEEP ELBOWS BELOW HANDS FOR OPTIMAL FORM!",
-                            (50, 150),
+                            message,
+                            (50, y),
                             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
                             fontScale=1,
                             color=(0, 0, 255),
                             thickness=2)
+                y += 50
+            
             # Start in dead hang
             # keep jawline parallel to ground
             # Dont Swing Body
             # Make sure you pull your chin above the bar for the pull up to count
             # Fully extend arms at bottom
             # Check grip
+    def checkDeadHang(self, leftAngle, rightAngle):
+        if leftAngle < math.pi - 0.3 or rightAngle < math.pi - 0.3:
+            return False
+        else:
+            return True
 
+    # CHAT GPT HELPED WITH THE BELOW METHOD
+    def calculate_angle(self, hand, elbow, shoulder):
+        # Calculate the lengths of the sides of the triangle
+        a = math.sqrt((elbow.x - shoulder.x)**2 + (elbow.y - shoulder.y)**2)
+        b = math.sqrt((hand.x - shoulder.x)**2 + (hand.y - shoulder.y)**2)
+        c = math.sqrt((hand.x - elbow.x)**2 + (hand.y - elbow.y)**2)
+        
+        # Use the Law of Cosines to find the angle at the elbow joint (in radians)
+        angle_rad = math.acos((b**2 + c**2 - a**2) / (2 * b * c))
+        
+        # Convert radians to degrees
+        angle_deg = math.degrees(angle_rad)
 
+        return angle_deg
             
     def run(self):
         """
@@ -141,7 +203,7 @@ class Counter:
             self.draw_landmarks_on_body(image, results)
             
             # Increase pull up count if pull up is detected
-            self.checkPullUp(results)
+            self.checkPullUp(image, results)
 
             self.checkForm(image, results)
 
