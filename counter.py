@@ -203,12 +203,15 @@ class Counter:
 
                 # Display pull-up count on screen
                 cv2.putText(image,
-                            "COUNT: " + str(self.count),
+                            "COUNT: " + str(self.count) + "                                         PRESS 'R' TO RESTART",
                             (50, 100),
                             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
                             fontScale=1,
                             color=(0, 0, 255),
                             thickness=2)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('r'):
+                    self.count = 0
 
             # Change the color of the frame back
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
