@@ -12,6 +12,7 @@ import numpy as np
 import cv2
 import time
 import math
+import pygame
 
 # Library Constants
 BaseOptions = mp.tasks.BaseOptions
@@ -93,8 +94,12 @@ class Counter:
                 self.started = True
                 self.deadHang = False
                 self.first = time.time()
-            elif repTime > 3:
-                messages.append("MAKE SURE TO RETURN TO A DEAD HANG BETWEEN EVERY REP!")
+
+                pygame.mixer.init()
+                pygame.mixer.music.load("data/Goal_Scored.wav")
+                pygame.mixer.music.play()
+            elif repTime > 4:
+                messages.append("DEAD HANG --> CHIN OVER BAR TO COUNT A REP!")
 
             if self.completed and leftHand.y < mouth.y and rightHand.y < mouth.y:
                 self.completed = False
@@ -103,10 +108,12 @@ class Counter:
                 if ((leftElbow.x < leftHand.x - 0.07 or leftElbow.x > leftHand.x + 0.07) or (rightElbow.x > rightHand.x + 0.07 and rightElbow.x < rightHand.x - 0.07)):
                     messages.append("KEEP ELBOWS BELOW HANDS FOR OPTIMAL FORM!")
 
-                if ((leftKnee.z < leftHip.z - 0.05 or leftKnee.z > leftHip.z + 0.05) or (rightKnee.z > rightHip.z + 0.05 and rightKnee.z < rightHip.z - 0.05)):
+                # Check if there's excessive forward/backward sway, CHATGPT HELPED
+                if abs(leftKnee.z - leftHip.z) > 0.06 or abs(rightKnee.z - rightHip.z) > 0.06:
                     messages.append("DON'T SWAY BACK AND FORTH!")
 
-                if ((leftKnee.x < leftHip.x - 0.015 or leftKnee.x > leftHip.x + 0.015) or (rightKnee.x > rightHip.x + 0.015 and rightKnee.x < rightHip.x - 0.015)):
+                # Check if there's excessive side-to-side sway, CHATGPT HELPED
+                if abs(leftKnee.x - leftHip.x) > 0.015 or abs(rightKnee.x - rightHip.x) > 0.015:
                     messages.append("DON'T SWAY SIDE TO SIDE!")
 
             y = 150
@@ -185,7 +192,7 @@ class Counter:
                                 (50, y),
                                 fontFace=cv2.FONT_HERSHEY_SIMPLEX,
                                 fontScale=1,
-                                color=(0, 0, 255),
+                                color=(225, 0, 0),
                                 thickness=2)
                     y += 50  # Increment y after each message
                 # Reset y for the next iteration
@@ -207,7 +214,7 @@ class Counter:
                             (50, 100),
                             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
                             fontScale=1,
-                            color=(0, 0, 255),
+                            color=(225, 0, 0),
                             thickness=2)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('r'):
