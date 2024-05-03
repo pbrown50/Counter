@@ -23,7 +23,7 @@ DrawingUtil = mp.solutions.drawing_utils
 
 class Counter:
     def __init__(self):
-        self.count = -1
+        self.count = 0
 
         # Create the pose detector
         base_options = BaseOptions(model_asset_path='data/pose_landmarker_lite.task')
@@ -37,6 +37,8 @@ class Counter:
 
         self.completed = False
         self.started = False
+
+        self.deadHang = False
 
     def draw_landmarks_on_body(self, image, detection_result):
         """
@@ -82,11 +84,17 @@ class Counter:
             leftAngle = self.calculate_angle(leftHand, leftElbow, leftShoulder)
             rightAngle = self.calculate_angle(rightHand, rightElbow, rightShoulder)
             messages = []
-            
-            if leftElbow.y > leftHand.y and rightElbow.y > rightHand.y and leftHand.y > mouth.y and rightHand.y > mouth.y and self.completed is False:
+            repTime = time.time() - self.first
+            if leftAngle < 12 and rightAngle < 12:
+                self.deadHang = True
+            if leftElbow.y > leftHand.y and rightElbow.y > rightHand.y and leftHand.y > mouth.y and rightHand.y > mouth.y and self.completed is False and self.deadHang:
                 self.count += 1
                 self.completed = True
                 self.started = True
+                self.deadHang = False
+                self.first = time.time()
+            elif repTime > 3:
+                messages.append("MAKE SURE TO RETURN TO A DEAD HANG BETWEEN EVERY REP!")
 
             if self.completed and leftHand.y < mouth.y and rightHand.y < mouth.y:
                 self.completed = False
@@ -100,7 +108,7 @@ class Counter:
 
                 if ((leftKnee.x < leftHip.x - 0.015 or leftKnee.x > leftHip.x + 0.015) or (rightKnee.x > rightHip.x + 0.015 and rightKnee.x < rightHip.x - 0.015)):
                     messages.append("DON'T SWAY SIDE TO SIDE!")
-                
+
             y = 150
             for message in messages:
                 cv2.putText(image,
@@ -111,12 +119,6 @@ class Counter:
                             color=(0, 0, 255),
                             thickness=2)
                 y += 50
-            # Start in dead hang
-            # keep jawline parallel to ground
-            # Dont Swing Body
-            # Make sure you pull your chin above the bar for the pull up to count
-            # Fully extend arms at bottom
-            # Check grip
 
     # CHAT GPT HELPED WITH THE BELOW METHOD
     def calculate_angle(self, hand, elbow, shoulder):
@@ -134,45 +136,24 @@ class Counter:
         return angle_deg
    
    
-    # CHAT GPT HELPED WITH THE LAST PART OF THIS METHOD
-    def run_protocol(self, image):
-        self.count += 1
-        protocol = ["PROTOCOL:",
-                    "-  PLACE CAMERA 5 ft FROM BAR",
-                    "-  PLACE CAMERA 5 ft HIGH",
-                    "-  PLACE CAMERA PARALLEL TO YOUR BODY",
-                    "",
-                    "",
-                    "   PRESS 'SPACE' WHEN THE ABOVE ACTIONS HAVE",
-                    "   BEEN COMPLETED AND START PULL-UPS"]
-        y = 150
-        for message in protocol:
-                cv2.putText(image,
-                            message,
-                            (50, y),
-                            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                            fontScale=1,
-                            color=(255, 0, 0),
-                            thickness=2)
-                y += 50
-        while True:
-            cv2.imshow("Protocol", image)
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord(' '):
-                break
-    
+    # CHAT GPT USED TO COMBINE PROTOCOL AND RUN METHODS
     def run(self):
         """
         Main game loop. Runs until the 
         user presses "q".
-        """    
+        """
         self.time = time.time()
-        # Run until we close the video
-        while self.video.isOpened():
-            self.time = time.time()
+        # Initialize protocol message display flag
+        show_protocol = True
 
-            # Get the current frame
-            frame = self.video.read()[1]
+        # Use the default camera (change the argument if you have multiple cameras)
+        cap = cv2.VideoCapture(0)
+
+        while cap.isOpened():
+            self.time = time.time()
+            ret, frame = cap.read()  # Read a frame from the camera
+            if not ret:
+                break
 
             # Convert it to an RGB image
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -184,14 +165,43 @@ class Counter:
 
             # Draw the pose landmarks
             self.draw_landmarks_on_body(image, results)
-            
-            if self.count == -1:
-                self.run_protocol(image)
-            # Increase pull up count if pull up is detected and correct form
-            self.checkForm(image, results)
 
-            if self.count != -1:
-                # Display pull up count on screen
+            if show_protocol:
+                # Display protocol messages
+                protocol = [
+                    "PROTOCOL:",
+                    "-  PLACE CAMERA 5 ft FROM BAR",
+                    "-  PLACE CAMERA 5 ft HIGH",
+                    "-  PLACE CAMERA PARALLEL TO YOUR BODY",
+                    "",
+                    "",
+                    "   PRESS 'SPACE' WHEN THE ABOVE ACTIONS HAVE",
+                    "   BEEN COMPLETED AND START PULL-UPS"
+                ]
+                y = 150
+                for message in protocol:
+                    cv2.putText(image,
+                                message,
+                                (50, y),
+                                fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                                fontScale=1,
+                                color=(0, 0, 255),
+                                thickness=2)
+                    y += 50  # Increment y after each message
+                # Reset y for the next iteration
+                y = 150
+
+                # Break the loop if the user presses 'SPACE'
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord(' '):
+                    show_protocol = False
+
+            # If not showing protocol, perform pull-up counting
+            else:
+                # Increase pull-up count if pull-up is detected and correct form
+                self.checkForm(image, results)
+
+                # Display pull-up count on screen
                 cv2.putText(image,
                             "COUNT: " + str(self.count),
                             (50, 100),
@@ -199,7 +209,7 @@ class Counter:
                             fontScale=1,
                             color=(0, 0, 255),
                             thickness=2)
-            
+
             # Change the color of the frame back
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             cv2.imshow('Pose Tracking', image)
@@ -209,8 +219,8 @@ class Counter:
                 print("COUNT: " + str(self.count) + "    THANKS FOR PLAYING!")
                 break    
 
-        # Release our video and close all windows
-        self.video.release()
+        # Release the video capture object and close all windows
+        cap.release()
         cv2.destroyAllWindows()
 if __name__ == "__main__":        
     c = Counter()
