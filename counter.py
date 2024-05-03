@@ -63,24 +63,6 @@ class Counter:
                                        pose_landmarks_proto,
                                        solutions.pose.POSE_CONNECTIONS,
                                        solutions.drawing_styles.get_default_pose_landmarks_style())
-    def checkPullUp(self, detection_result):
-        pose_landmarks_list = detection_result.pose_landmarks
-        for idx in range(len(pose_landmarks_list)):
-            pose_landmarks = pose_landmarks_list[idx]
-
-            leftHand = pose_landmarks[19]
-            rightHand = pose_landmarks[20]
-            leftElbow = pose_landmarks[13]
-            rightElbow = pose_landmarks[14]
-            mouth = pose_landmarks[10]
-            
-            if leftElbow.y > leftHand.y and rightElbow.y > rightHand.y and leftHand.y > mouth.y and rightHand.y > mouth.y and self.completed is False:
-                self.count += 1
-                self.completed = True
-                self.started = True
-
-            if self.completed and leftHand.y < mouth.y and rightHand.y < mouth.y:
-                self.completed = False
     def checkForm(self, image, detection_result):
         pose_landmarks_list = detection_result.pose_landmarks
         for idx in range(len(pose_landmarks_list)):
@@ -100,6 +82,14 @@ class Counter:
             leftAngle = self.calculate_angle(leftHand, leftElbow, leftShoulder)
             rightAngle = self.calculate_angle(rightHand, rightElbow, rightShoulder)
             messages = []
+            
+            if leftElbow.y > leftHand.y and rightElbow.y > rightHand.y and leftHand.y > mouth.y and rightHand.y > mouth.y and self.completed is False:
+                self.count += 1
+                self.completed = True
+                self.started = True
+
+            if self.completed and leftHand.y < mouth.y and rightHand.y < mouth.y:
+                self.completed = False
 
             if self.started:
                 if ((leftElbow.x < leftHand.x - 0.07 or leftElbow.x > leftHand.x + 0.07) or (rightElbow.x > rightHand.x + 0.07 and rightElbow.x < rightHand.x - 0.07)):
@@ -110,7 +100,7 @@ class Counter:
 
                 if ((leftKnee.x < leftHip.x - 0.015 or leftKnee.x > leftHip.x + 0.015) or (rightKnee.x > rightHip.x + 0.015 and rightKnee.x < rightHip.x - 0.015)):
                     messages.append("DON'T SWAY SIDE TO SIDE!")
-
+                
             y = 150
             for message in messages:
                 cv2.putText(image,
@@ -142,7 +132,35 @@ class Counter:
         angle_deg = math.degrees(angle_rad)
 
         return angle_deg
-            
+   
+   
+    # CHAT GPT HELPED WITH THE LAST PART OF THIS METHOD
+    def run_protocol(self, image):
+        self.count += 1
+        protocol = ["PROTOCOL:",
+                    "-  PLACE CAMERA 5 ft FROM BAR",
+                    "-  PLACE CAMERA 5 ft HIGH",
+                    "-  PLACE CAMERA PARALLEL TO YOUR BODY",
+                    "",
+                    "",
+                    "   PRESS 'SPACE' WHEN THE ABOVE ACTIONS HAVE",
+                    "   BEEN COMPLETED AND START PULL-UPS"]
+        y = 150
+        for message in protocol:
+                cv2.putText(image,
+                            message,
+                            (50, y),
+                            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                            fontScale=1,
+                            color=(255, 0, 0),
+                            thickness=2)
+                y += 50
+        while True:
+            cv2.imshow("Protocol", image)
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord(' '):
+                break
+    
     def run(self):
         """
         Main game loop. Runs until the 
@@ -167,9 +185,9 @@ class Counter:
             # Draw the pose landmarks
             self.draw_landmarks_on_body(image, results)
             
-            # Increase pull up count if pull up is detected
-            self.checkPullUp(results)
-
+            if self.count == -1:
+                self.run_protocol(image)
+            # Increase pull up count if pull up is detected and correct form
             self.checkForm(image, results)
 
             if self.count != -1:
