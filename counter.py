@@ -25,6 +25,7 @@ DrawingUtil = mp.solutions.drawing_utils
 class Counter:
     def __init__(self):
         self.count = 0
+        self.highScore = 0
 
         # Create the pose detector
         base_options = BaseOptions(model_asset_path='data/pose_landmarker_lite.task')
@@ -90,6 +91,8 @@ class Counter:
                 self.deadHang = True
             if leftElbow.y > leftHand.y and rightElbow.y > rightHand.y and leftHand.y > mouth.y and rightHand.y > mouth.y and self.completed is False and self.deadHang:
                 self.count += 1
+                if self.count > self.highScore:
+                    self.highScore = self.count
                 self.completed = True
                 self.started = True
                 self.deadHang = False
@@ -116,7 +119,7 @@ class Counter:
                 if abs(leftKnee.x - leftHip.x) > 0.015 or abs(rightKnee.x - rightHip.x) > 0.015:
                     messages.append("DON'T SWAY SIDE TO SIDE!")
 
-            y = 150
+            y = 250
             for message in messages:
                 cv2.putText(image,
                             message,
@@ -177,10 +180,10 @@ class Counter:
                 # Display protocol messages
                 protocol = [
                     "PROTOCOL:",
-                    "-  PLACE CAMERA 5 ft FROM BAR",
-                    "-  PLACE CAMERA 5 ft HIGH",
+                    "-  PLACE CAMERA 8 ft FROM BAR",
+                    "-  PLACE CAMERA 6 ft HIGH",
                     "-  PLACE CAMERA PARALLEL TO YOUR BODY",
-                    "",
+                    "-  ENSURE YOUR ENTIRE BODY IS IN FRAME",
                     "",
                     "   PRESS 'SPACE' WHEN THE ABOVE ACTIONS HAVE",
                     "   BEEN COMPLETED AND START PULL-UPS"
@@ -195,8 +198,6 @@ class Counter:
                                 color=(225, 0, 0),
                                 thickness=2)
                     y += 50  # Increment y after each message
-                # Reset y for the next iteration
-                y = 150
 
                 # Break the loop if the user presses 'SPACE'
                 key = cv2.waitKey(1) & 0xFF
@@ -207,11 +208,17 @@ class Counter:
             else:
                 # Increase pull-up count if pull-up is detected and correct form
                 self.checkForm(image, results)
-
                 # Display pull-up count on screen
                 cv2.putText(image,
                             "COUNT: " + str(self.count) + "                                         PRESS 'R' TO RESTART",
                             (50, 100),
+                            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                            fontScale=1,
+                            color=(225, 0, 0),
+                            thickness=2)
+                cv2.putText(image,
+                            "HIGH SCORE: " + str(self.highScore),
+                            (50, 150),
                             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
                             fontScale=1,
                             color=(225, 0, 0),
@@ -225,7 +232,7 @@ class Counter:
             cv2.imshow('Pose Tracking', image)
 
             # Break the loop if the user presses 'q'
-            if cv2.waitKey(50) & 0xFF == ord('q'):
+            if key == ord('q'):
                 print("COUNT: " + str(self.count) + "    THANKS FOR PLAYING!")
                 break    
 
