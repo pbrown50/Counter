@@ -178,6 +178,7 @@ class Counter:
 
             if show_protocol:
                 # Display protocol messages
+                cv2.rectangle(image, (25, 100), (900, 550), (255, 255, 255), -1)
                 protocol = [
                     "PROTOCOL:",
                     "-  PLACE CAMERA 8 ft FROM BAR",
@@ -209,6 +210,7 @@ class Counter:
                 # Increase pull-up count if pull-up is detected and correct form
                 self.checkForm(image, results)
                 # Display pull-up count on screen
+                # cv2.rectangle(image, (25, 50), (1250, 200), (255, 255, 255), -1)
                 cv2.putText(image,
                             "COUNT: " + str(self.count) + "                                         PRESS 'R' TO RESTART",
                             (50, 100),
